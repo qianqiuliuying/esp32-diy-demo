@@ -2,7 +2,7 @@
 #include <WebServer.h>
 
 const char* ssid = "vivo S30";
-const char* password = "excellentlgg";
+const char* password = "******";
 
 #define TOUCH_PIN 4  
 

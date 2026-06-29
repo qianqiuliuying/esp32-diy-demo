@@ -2,7 +2,7 @@
 #include <WebServer.h>
 
 const char* ssid = "vivo S30";
-const char* password = "excellentlgg";
+const char* password = "******";
 
 const int LED_PIN = 2;
 
