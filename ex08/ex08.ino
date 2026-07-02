@@ -1,8 +1,9 @@
 #include <WiFi.h>
 #include <WebServer.h>
 
-const char* ssid = "vivo S30";
-const char* password = "******";
+// ===== AP 热点配置 =====
+const char* ap_ssid = "ESP32-LAB008";
+const char* ap_password = "12345678";   // 至少8位
 
 #define TOUCH_PIN 4
 #define LED_PIN   2
@@ -27,70 +28,105 @@ bool ledState = false;
 
 WebServer server(80);
 
-
-//  构建HTML页面
+// ===== 构建 HTML 页面（含自动刷新状态） =====
 String makePage() {
-  // 状态文字
-  String statusText = armed ? "🔴 已布防" : "🟢 已撤防";
-  String alarmText = alarmTriggered ? "🚨 报警中！" : "✅ 正常";
-  
-  // 状态class
-  String armClass = armed ? "armed" : "disarmed";
+  String html = R"rawliteral(
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>物联网安防报警器</title>
+  <style>
+    body { font-family: Arial; text-align: center; margin-top: 50px; background: #f5f5f5; }
+    .container { background: white; padding: 30px; border-radius: 20px; max-width: 400px; margin: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    h1 { color: #333; }
+    .status { font-size: 22px; margin: 15px 0; }
+    .armed { color: #dc3545; }
+    .disarmed { color: #28a745; }
+    .alarm { color: #ff0000; font-weight: bold; font-size: 28px; }
+    .btn-group { margin-top: 20px; }
+    button { padding: 15px 30px; margin: 8px; border: none; border-radius: 10px; font-size: 18px; cursor: pointer; }
+    .btn-arm { background: #dc3545; color: white; }
+    .btn-disarm { background: #28a745; color: white; }
+    .btn-arm:hover { background: #c82333; }
+    .btn-disarm:hover { background: #218838; }
+    .footer { margin-top: 30px; color: #888; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 安防报警器</h1>
+    <div class="status">
+      系统状态：<span id="armStatus" class="disarmed">🟢 已撤防</span>
+    </div>
+    <div class="status">
+      报警状态：<span id="alarmStatus" class="alarm" style="color:#28a745;">✅ 正常</span>
+    </div>
+    <div class="btn-group">
+      <button class="btn-arm" onclick="sendCommand('arm')">🔒 布防</button>
+      <button class="btn-disarm" onclick="sendCommand('disarm')">🔓 撤防</button>
+    </div>
+    <div class="footer">触摸引脚 (GPIO4) 触发报警</div>
+  </div>
 
-  // 使用 String 拼接构建 HTML
-  String html = "<!DOCTYPE html>\n";
-  html += "<html lang=\"zh-CN\">\n";
-  html += "<head>\n";
-  html += "  <meta charset=\"UTF-8\">\n";
-  html += "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n";
-  html += "  <title>物联网安防报警器</title>\n";
-  html += "  <style>\n";
-  html += "    body { font-family: Arial; text-align: center; margin-top: 50px; background: #f5f5f5; }\n";
-  html += "    .container { background: white; padding: 30px; border-radius: 20px; max-width: 400px; margin: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }\n";
-  html += "    h1 { color: #333; }\n";
-  html += "    .status { font-size: 22px; margin: 15px 0; }\n";
-  html += "    .armed { color: #dc3545; }\n";
-  html += "    .disarmed { color: #28a745; }\n";
-  html += "    .alarm { color: #ff0000; font-weight: bold; font-size: 28px; }\n";
-  html += "    .btn-group { margin-top: 20px; }\n";
-  html += "    button { padding: 15px 30px; margin: 8px; border: none; border-radius: 10px; font-size: 18px; cursor: pointer; }\n";
-  html += "    .btn-arm { background: #dc3545; color: white; }\n";
-  html += "    .btn-disarm { background: #28a745; color: white; }\n";
-  html += "    .btn-arm:hover { background: #c82333; }\n";
-  html += "    .btn-disarm:hover { background: #218838; }\n";
-  html += "    .footer { margin-top: 30px; color: #888; font-size: 14px; }\n";
-  html += "  </style>\n";
-  html += "</head>\n";
-  html += "<body>\n";
-  html += "  <div class=\"container\">\n";
-  html += "    <h1>🔐 安防报警器</h1>\n";
-  html += "    <div class=\"status\">\n";
-  html += "      系统状态：<span id=\"armStatus\" class=\"" + armClass + "\">" + statusText + "</span>\n";
-  html += "    </div>\n";
-  html += "    <div class=\"status\">\n";
-  html += "      报警状态：<span id=\"alarmStatus\" class=\"alarm\">" + alarmText + "</span>\n";
-  html += "    </div>\n";
-  html += "    <div class=\"btn-group\">\n";
-  html += "      <button class=\"btn-arm\" onclick=\"sendCommand('arm')\">🔒 布防</button>\n";
-  html += "      <button class=\"btn-disarm\" onclick=\"sendCommand('disarm')\">🔓 撤防</button>\n";
-  html += "    </div>\n";
-  html += "    <div class=\"footer\">触摸引脚 (GPIO4) 触发报警</div>\n";
-  html += "  </div>\n";
-  html += "  <script>\n";
-  html += "    function sendCommand(cmd) {\n";
-  html += "      fetch('/' + cmd)\n";
-  html += "        .then(response => response.text())\n";
-  html += "        .then(data => { location.reload(); })\n";
-  html += "        .catch(error => { alert('网络错误，请重试'); console.error('Error:', error); });\n";
-  html += "    }\n";
-  html += "  </script>\n";
-  html += "</body>\n";
-  html += "</html>\n";
-  
+  <script>
+    // 发送命令（布防/撤防）
+    function sendCommand(cmd) {
+      fetch('/' + cmd)
+        .then(response => response.text())
+        .then(data => {
+          console.log('Command executed: ' + cmd);
+        })
+        .catch(error => {
+          alert('网络错误，请重试');
+          console.error('Error:', error);
+        });
+    }
+
+    // 定时获取最新状态（每 500ms）
+    function fetchStatus() {
+      fetch('/status')
+        .then(response => response.json())
+        .then(data => {
+          // 更新布防状态
+          const armSpan = document.getElementById('armStatus');
+          if (data.armed) {
+            armSpan.textContent = '🔴 已布防';
+            armSpan.className = 'armed';
+          } else {
+            armSpan.textContent = '🟢 已撤防';
+            armSpan.className = 'disarmed';
+          }
+
+          // 更新报警状态
+          const alarmSpan = document.getElementById('alarmStatus');
+          if (data.alarm) {
+            alarmSpan.textContent = '🚨 报警中！';
+            alarmSpan.style.color = '#ff0000';
+          } else {
+            alarmSpan.textContent = '✅ 正常';
+            alarmSpan.style.color = '#28a745';
+          }
+        })
+        .catch(error => {
+          console.error('Fetch status error:', error);
+        });
+    }
+
+    // 页面加载后立即获取一次，并启动定时器
+    window.onload = function() {
+      fetchStatus();
+      setInterval(fetchStatus, 500); // 每 500ms 更新一次
+    };
+  </script>
+</body>
+</html>
+)rawliteral";
   return html;
 }
 
-//  Web路由处理
+// ===== Web 路由处理 =====
 void handleRoot() {
   server.send(200, "text/html; charset=UTF-8", makePage());
 }
@@ -111,8 +147,16 @@ void handleDisarm() {
   Serial.println("System Disarmed");
 }
 
+// ===== 状态查询接口（手动拼接 JSON，无库依赖） =====
+void handleStatus() {
+  String json = "{";
+  json += "\"armed\":" + String(armed ? "true" : "false") + ",";
+  json += "\"alarm\":" + String(alarmTriggered ? "true" : "false");
+  json += "}";
+  server.send(200, "application/json", json);
+}
 
-//  触摸检测
+// ===== 触摸检测 =====
 void checkTouch() {
   int touchValue = touchRead(TOUCH_PIN);
   bool reading = (touchValue < threshold);
@@ -134,8 +178,7 @@ void checkTouch() {
   }
 }
 
-
-//  LED报警闪烁
+// ===== LED 报警闪烁 =====
 void handleAlarmBlink() {
   if (alarmTriggered) {
     unsigned long currentMillis = millis();
@@ -157,19 +200,18 @@ void setup() {
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
 
-  WiFi.begin(ssid, password);
-  Serial.print("连接WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\n连接成功");
-  Serial.print("访问地址: http://");
-  Serial.println(WiFi.localIP());
+  // ----- 开启 AP 热点（自发热点） -----
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(ap_ssid, ap_password);
+  Serial.println("==== ESP32 AP 启动成功 ====");
+  Serial.print("热点名称："); Serial.println(ap_ssid);
+  Serial.print("访问地址："); Serial.println(WiFi.softAPIP());  // 通常 192.168.4.1
 
+  // ----- 路由绑定 -----
   server.on("/", handleRoot);
   server.on("/arm", handleArm);
   server.on("/disarm", handleDisarm);
+  server.on("/status", handleStatus);
   server.begin();
   Serial.println("Web服务器已启动，安防报警器就绪");
 }
