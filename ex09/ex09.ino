@@ -1,13 +1,13 @@
 #include <WiFi.h>
 #include <WebServer.h>
 
-const char* ssid = "vivo S30";
-const char* password = "******";
+// ===== AP 热点配置 =====
+const char* ap_ssid = "ESP32-LAB008";
+const char* ap_password = "12345678";   // 至少8位
 
 #define TOUCH_PIN 4  
 
 WebServer server(80);
-
 
 //  构建HTML页面（含仪表盘显示和AJAX轮询）
 String makePage() {
@@ -92,16 +92,12 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
-  // 连接WiFi
-  WiFi.begin(ssid, password);
-  Serial.print("连接WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\n连接成功");
-  Serial.print("访问地址: http://");
-  Serial.println(WiFi.localIP());
+  // ----- 开启 AP 热点（自发热点） -----
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(ap_ssid, ap_password);
+  Serial.println("==== ESP32 AP 启动成功 ====");
+  Serial.print("热点名称："); Serial.println(ap_ssid);
+  Serial.print("访问地址："); Serial.println(WiFi.softAPIP());  // 通常 192.168.4.1
 
   // 配置路由
   server.on("/", handleRoot);
