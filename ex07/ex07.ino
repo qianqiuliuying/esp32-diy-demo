@@ -1,8 +1,9 @@
 #include <WiFi.h>
 #include <WebServer.h>
 
-const char* ssid = "vivo S30";
-const char* password = "******";
+// ===== AP 热点配置 =====
+const char* ap_ssid = "ESP32-LAB008";
+const char* ap_password = "12345678";   // 至少8位
 
 const int LED_PIN = 2;
 
@@ -92,12 +93,11 @@ String makePage() {
   return html;
 }
 
-// ===== 根路径：返回 HTML 页面 =====
 void handleRoot() {
   server.send(200, "text/html; charset=UTF-8", makePage());
 }
 
-// ===== 设置亮度：/set?value=xxx =====
+// ===== 设置亮度 =====
 void handleSet() {
   if (server.hasArg("value")) {
     int val = server.arg("value").toInt();
@@ -113,7 +113,7 @@ void handleSet() {
   }
 }
 
-//点亮
+// 点亮
 void handleOn() {
   currentBrightness = 255;
   ledcWrite(LED_PIN, currentBrightness);
@@ -121,7 +121,7 @@ void handleOn() {
   server.send(303);
 }
 
-//熄灭
+// 熄灭
 void handleOff() {
   currentBrightness = 0;
   ledcWrite(LED_PIN, currentBrightness);
@@ -133,24 +133,20 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
-  //初始化 PWM
+  // 初始化 PWM
   ledcAttach(LED_PIN, freq, resolution);
   ledcWrite(LED_PIN, 0);      // 初始熄灭
 
-  //连接 WiFi
-  WiFi.begin(ssid, password);
-  Serial.print("连接WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\n连接成功");
-  Serial.print("访问地址: http://");
-  Serial.println(WiFi.localIP());
+  // ----- 开启 AP 热点（自发热点） -----
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(ap_ssid, ap_password);
+  Serial.println("==== ESP32 AP 启动成功 ====");
+  Serial.print("热点名称："); Serial.println(ap_ssid);
+  Serial.print("访问地址："); Serial.println(WiFi.softAPIP());  // 通常 192.168.4.1
 
   // ----- 配置 Web 路由 -----
   server.on("/", handleRoot);
-  server.on("/set", handleSet);    // 新增调光接口
+  server.on("/set", handleSet);
   server.on("/on", handleOn);
   server.on("/off", handleOff);
 
